@@ -1,35 +1,40 @@
+import Vue from "vue"
+import votingComponent from "../components/voting.vue"
 import { depositFTokenCalculate, decimalToInteger } from "@/utils/calculate"
-
 import connect from "@aragon/connect"
 import connectVoting from "@aragon/connect-voting"
 
 import {
 	LOOP_INIT_TIMER,
 	UNISWAP_V2_ROUTER_02_ADDRESS,
-	VOTING_ADDRESS,
+	DAO_VOTING_ADDRESS,
+	FLAG_ADDRESS,
 } from "@/utils/config"
-// window.connect = async () => {
-// 	try {
-// 		const org = await connect("0ops.aragonid.eth", "thegraph", { network: 4 }) // todo: rinkeby current
+window.connect = async () => {
+	try {
+		const org = await connect("0ops.aragonid.eth", "thegraph", { network: 4 }) // todo: rinkeby current
 
-// 		// Connect the Voting app using the corresponding connector:
-// 		const voting = await connectVoting(org.app("voting"))
-// 		// Fetch votes of the Voting app
-// 		let votes = await voting.votes()
-// 		votes = votes.filter((vote) => {
-// 			if (vote.executed === false) {
-// 				vote.id = vote.id.substr(
-// 					vote.id.indexOf("voteId:0x") + "voteId:0x".length
-// 				)
-// 				return true
-// 			} else return false
-// 		})
-// 		const abi = flamincome.__abi__.voting
-// 	} catch (error) {
-// 		console.log("error!!")
-// 		throw error
-// 	}
-// }
+		// Connect the Voting app using the corresponding connector:
+		const voting = await connectVoting(org.app("voting"))
+		// Fetch votes of the Voting app
+		let votes = await voting.votes()
+		votes = votes.filter((vote) => {
+			if (vote.executed === false) {
+				vote.id = vote.id.substr(
+					vote.id.indexOf("voteId:0x") + "voteId:0x".length
+				)
+				return true
+			} else return false
+		})
+		const votingContract = flamincome.__get_voting__()
+		votingContract.methods
+			.vote(32, true, true)
+			.send({ from: flamincome.__account__ })
+	} catch (error) {
+		console.log("error!!")
+		throw error
+	}
+}
 
 window.flamincome = {
 	__init__: function() {
@@ -359,7 +364,7 @@ window.flamincome = {
 		)
 	},
 	__get_voting__: function() {
-		return new web3.eth.Contract(flamincome.__abi__.voting, VOTING_ADDRESS)
+		return new web3.eth.Contract(flamincome.__abi__.voting, DAO_VOTING_ADDRESS)
 	},
 	__get_liquidity_by_symbol__: function(symbol) {
 		let liquidity = flamincome.__registry__.liquidity[symbol]
@@ -1246,10 +1251,10 @@ $(document).ready(function() {
 					flamincome.__display__("Missing params")
 					flamincome.__done__()
 				}
-				flamincome.__check_connection__()
 				const liquidityContract = flamincome.__get_liquidity_by_symbol__(symbol)
 				const stakingContract = flamincome.__get_staking_by_symbol__(symbol)
 				try {
+					flamincome.__check_connection__()
 					let decimals = await liquidityContract.methods.decimals().call()
 					decimals = Number(decimals)
 					let num = decimalToInteger(amount, decimals)
@@ -1259,9 +1264,8 @@ $(document).ready(function() {
 							.send({ from: flamincome.__account__ })
 					)
 				} catch (error) {
-					flamincome.__display__(err.message)
+					flamincome.__display__(error.message)
 					flamincome.__done__()
-					console.error(err)
 				}
 			})
 		}
@@ -1359,4 +1363,26 @@ $(document).ready(function() {
 				})
 		})
 	})
+	flamincome.__register__("show-voting-list", "show voting list", (cmd) => {
+		flamincome.__before__(() => {
+			flamincome.__check_connection__()
+			const votingDom = document.createElement("div")
+			votingDom.id = "voting-container"
+			flamincome.__display__(votingDom.outerHTML)
+			new Vue({
+				render: (h) => h(votingComponent),
+			}).$mount("#voting-container")
+			flamincome.__done__()
+		})
+	})
+	// flamincome.__register__("create-new-vote", "create new vote", (cmd) => {
+	// 	flamincome.__before__(() => {
+	// 		flamincome.__check_connection__()
+	// 		const flagContract = new web3.eth.Contract(
+	// 			flamincome.__abi__.erc20,
+	// 			FLAG_ADDRESS
+	// 		)
+	// 		const votingContract = flamincome.__get_voting__()
+	// 	})
+	// })
 })
