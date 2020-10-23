@@ -12,7 +12,9 @@
 						@click="toVote({ id: vote.id, supports: true })"
 						>YES</span
 					>
-					<span class="no red" @click="toVote({ id: vote.id, supports: false })">NO</span>
+					<span class="no red" @click="toVote({ id: vote.id, supports: false })"
+						>NO</span
+					>
 				</div>
 				<p class="green" v-if="vote.state == 1">
 					You voted YES
@@ -25,7 +27,7 @@
 <script>
 import connect from "@aragon/connect"
 import connectVoting from "@aragon/connect-voting"
-import { ETH_NETWORK_ID } from "@/utils/config"
+
 export default {
 	mounted() {
 		this.init()
@@ -45,7 +47,7 @@ export default {
 		async init() {
 			try {
 				const org = await connect("0ops.aragonid.eth", "thegraph", {
-					network: ETH_NETWORK_ID,
+					network: flamincome.__net_id__,
 				})
 
 				// Connect the Voting app using the corresponding connector:

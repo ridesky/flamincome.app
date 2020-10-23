@@ -3,43 +3,18 @@ import votingComponent from "../components/voting.vue"
 import { depositFTokenCalculate, decimalToInteger } from "@/utils/calculate"
 import connect from "@aragon/connect"
 import connectVoting from "@aragon/connect-voting"
-
+import { getNetConfig } from "../utils/net/index"
 import {
 	LOOP_INIT_TIMER,
 	UNISWAP_V2_ROUTER_02_ADDRESS,
-	DAO_VOTING_ADDRESS,
 	FLAG_ADDRESS,
 } from "@/utils/config"
-window.connect = async () => {
-	try {
-		const org = await connect("0ops.aragonid.eth", "thegraph", { network: 4 }) // todo: rinkeby current
-
-		// Connect the Voting app using the corresponding connector:
-		const voting = await connectVoting(org.app("voting"))
-		// Fetch votes of the Voting app
-		let votes = await voting.votes()
-		votes = votes.filter((vote) => {
-			if (vote.executed === false) {
-				vote.id = vote.id.substr(
-					vote.id.indexOf("voteId:0x") + "voteId:0x".length
-				)
-				return true
-			} else return false
-		})
-		const votingContract = flamincome.__get_voting__()
-		votingContract.methods
-			.vote(32, true, true)
-			.send({ from: flamincome.__account__ })
-	} catch (error) {
-		console.log("error!!")
-		throw error
-	}
-}
 
 window.flamincome = {
-	__init__: function() {
+	__init__: async function() {
 		try {
 			window.web3 = new Web3(web3.currentProvider)
+			flamincome.__net_id__ = await web3.eth.net.getId()
 		} catch {}
 		fetch("https://cdn.jsdelivr.net/gh/flamincome/logo/flamincome")
 			.then((resp) => resp.text())
@@ -71,7 +46,7 @@ window.flamincome = {
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
 		fetch(
-			"https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/abi/uniswap.v2.json"
+			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/abi/uniswap.v2.json`
 		)
 			.then((resp) => resp.text())
 			.then((text) => {
@@ -82,7 +57,7 @@ window.flamincome = {
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
 		fetch(
-			"https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/abi/voting.json"
+			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/abi/voting.json`
 		)
 			.then((resp) => resp.text())
 			.then((text) => {
@@ -93,7 +68,7 @@ window.flamincome = {
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
 		fetch(
-			"https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/abi/liquidity.provider.json"
+			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/abi/liquidity.provider.json`
 		)
 			.then((resp) => resp.text())
 			.then((text) => {
@@ -104,7 +79,7 @@ window.flamincome = {
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
 		fetch(
-			"https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/abi/staking.pool.json"
+			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/abi/staking.pool.json`
 		)
 			.then((resp) => resp.text())
 			.then((text) => {
@@ -153,7 +128,7 @@ window.flamincome = {
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
 		fetch(
-			"https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/address/liquidity.json"
+			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/address/liquidity.json`
 		)
 			.then((resp) => resp.text())
 			.then((text) => {
@@ -164,7 +139,7 @@ window.flamincome = {
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
 		fetch(
-			"https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/address/staking.json"
+			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/address/staking.json`
 		)
 			.then((resp) => resp.text())
 			.then((text) => {
@@ -189,6 +164,7 @@ window.flamincome = {
 	__ptty__: null,
 	__abi__: {},
 	__registry__: {},
+	__net_id__: 1, // default is 1 (main net)
 	__logo__: "",
 	__account__: null,
 	__speak__: function(item) {
@@ -364,7 +340,13 @@ window.flamincome = {
 		)
 	},
 	__get_voting__: function() {
-		return new web3.eth.Contract(flamincome.__abi__.voting, DAO_VOTING_ADDRESS)
+		if (!getNetConfig(flamincome.__net_id__).DAO_VOTING_ADDRESS) {
+			throw { message: `canout find voting address` }
+		}
+		return new web3.eth.Contract(
+			flamincome.__abi__.voting,
+			getNetConfig(flamincome.__net_id__).DAO_VOTING_ADDRESS
+		)
 	},
 	__get_liquidity_by_symbol__: function(symbol) {
 		let liquidity = flamincome.__registry__.liquidity[symbol]
@@ -1375,14 +1357,70 @@ $(document).ready(function() {
 			flamincome.__done__()
 		})
 	})
-	// flamincome.__register__("create-new-vote", "create new vote", (cmd) => {
-	// 	flamincome.__before__(() => {
-	// 		flamincome.__check_connection__()
-	// 		const flagContract = new web3.eth.Contract(
-	// 			flamincome.__abi__.erc20,
-	// 			FLAG_ADDRESS
-	// 		)
-	// 		const votingContract = flamincome.__get_voting__()
-	// 	})
-	// })
+	flamincome.__register__("create-new-vote", "create new vote", (cmd) => {
+		flamincome.__before__(async () => {
+			try {
+				flamincome.__check_connection__()
+				const evmScript = cmd[1]
+				let timeLockContract = null
+				let flagContract = null
+				if (flamincome.__net_id__ == 1) {
+					const tokensContract = new web3.eth.Contract(
+						flamincome.__abi__.voting,
+						getNetConfig(flamincome.__net_id__).DAO_TOKENS_ADDRESS
+					)
+					flamincome.__transaction__(
+						tokensContract.methods
+							.forward(evmScript)
+							.send({ from: flamincome.__account__ })
+					)
+					return
+				} else {
+					timeLockContract = new web3.eth.Contract(
+						flamincome.__abi__.voting,
+						getNetConfig(flamincome.__net_id__).DAO_TIME_LOCK_ADDRESS
+					)
+					flagContract = new web3.eth.Contract(
+						flamincome.__abi__.erc20,
+						getNetConfig(flamincome.__net_id__).FLAG_ADDRESS
+					)
+				}
+
+				let allowance = await flagContract.methods
+					.allowance(
+						flamincome.__account__,
+						getNetConfig(flamincome.__net_id__).DAO_TIME_LOCK_ADDRESS
+					)
+					.call()
+				allowance = new web3.utils.BN(allowance)
+				const lockAmount = new web3.utils.BN((1).toString())
+				console.log(allowance.cmp(lockAmount))
+				if (allowance.cmp(lockAmount) === -1) {
+					if (allowance > 0) {
+						await flagContract.methods
+							.approve(
+								getNetConfig(flamincome.__net_id__).DAO_TIME_LOCK_ADDRESS,
+								0
+							)
+							.send({ from: flamincome.__account__ })
+					}
+					await flagContract.methods
+						.approve(
+							getNetConfig(flamincome.__net_id__).DAO_TIME_LOCK_ADDRESS,
+							lockAmount
+						)
+						.send({ from: flamincome.__account__ })
+				}
+				flamincome.__transaction__(
+					timeLockContract.methods
+						.forward(evmScript)
+						.send({ from: flamincome.__account__ })
+				)
+			} catch (error) {
+				flamincome.__display__(error.message)
+				console.error(error)
+				flamincome.__done__()
+			}
+		})
+	})
 })
