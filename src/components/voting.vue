@@ -6,15 +6,11 @@
 				<p class="metadata">
 					<span>#{{ vote.id }}:</span><span>{{ vote.metadata }}</span>
 				</p>
-				<div v-if="vote.state == 0">
-					<span
-						class="yes green"
-						@click="toVote({ id: vote.id, supports: true })"
-						>YES</span
-					>
-					<span class="no red" @click="toVote({ id: vote.id, supports: false })"
-						>NO</span
-					>
+				<div v-if="vote.isOpen">
+					<div v-if="vote.state == 0">
+						<span class="yes green" @click="toVote({ id: vote.id, supports: true })">YES</span>
+						<span class="no red" @click="toVote({ id: vote.id, supports: false })">NO</span>
+					</div>
 				</div>
 				<p class="green" v-if="vote.state == 1">
 					You voted YES
@@ -27,6 +23,9 @@
 <script>
 import connect from "@aragon/connect"
 import connectVoting from "@aragon/connect-voting"
+import _ from "lodash"
+
+const PCTBASE = 1e18
 
 export default {
 	mounted() {
@@ -54,15 +53,16 @@ export default {
 				const voting = await connectVoting(org.app("voting"))
 				// Fetch votes of the Voting app
 				let votes = await voting.votes()
-				this.votes = votes.filter((vote) => {
-					if (vote.executed === false) {
-						vote.id = vote.id.substr(
-							vote.id.indexOf("voteId:0x") + "voteId:0x".length
-						)
-						vote.id = new web3.utils.BN(vote.id, 16).toString()
-						this.getVoterState(vote)
-						return true
-					} else return false
+				votes = votes.map((vote) => {
+					vote.id = vote.id.substr(
+						vote.id.indexOf("voteId:0x") + "voteId:0x".length
+					)
+					vote.id = new web3.utils.BN(vote.id, 16).toString()
+					this.getVoterState(vote)
+					return vote
+				})
+				this.votes = _.sortBy(votes, (vote) => {
+					return parseInt(vote.id)
 				})
 				this.status = "1"
 			} catch (error) {
@@ -77,6 +77,18 @@ export default {
 				.call()
 				.then((res) => {
 					this.$set(vote, "state", res)
+				})
+				.catch((err) => {
+					console.error(err)
+				})
+			votingContract.methods
+				.voteTime()
+				.call()
+				.then((vt) => {
+					let voteDuration = parseInt(vt)
+					let startDate = parseInt(vote.startDate)
+					let currentTS = parseInt((new Date()).getTime() / 1000)
+					vote.isOpen = ((startDate + voteDuration) > currentTS) && !vote.executed
 				})
 				.catch((err) => {
 					console.error(err)

@@ -12,6 +12,7 @@
     "@aragon/connect-voting": "^0.7.0",
     "bignumber.js": "^9.0.1",
     "core-js": "^3.6.5",
+    "lodash": "^4.17.20",
     "number-to-bn": "^1.7.0",
     "vue": "^2.6.11"
   },
