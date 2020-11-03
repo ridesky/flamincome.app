@@ -12,9 +12,11 @@
 						<span class="no red" @click="toVote({ id: vote.id, supports: false })">NO</span>
 					</div>
 				</div>
-				<p class="green" v-if="vote.state == 1">
-					You voted YES
-				</p>
+				<div v-if="!vote.isOpen">
+					<p class="green" v-if="vote.success">Passed</p>
+					<p class="red" v-if="!vote.success">Rejected</p>
+				</div>
+				<p class="green" v-if="vote.state == 1">You voted YES</p>
 				<p class="red" v-if="vote.state == 2">You voted No</p>
 			</div>
 		</div>
@@ -25,7 +27,7 @@ import connect from "@aragon/connect"
 import connectVoting from "@aragon/connect-voting"
 import _ from "lodash"
 
-const PCTBASE = 1e18
+const PCTBASE = new web3.utils.BN('1000000000000000000') // 1e18
 
 export default {
 	mounted() {
@@ -93,6 +95,29 @@ export default {
 				.catch((err) => {
 					console.error(err)
 				})
+
+			// https://github.com/aragon/aragon-apps/blob/master/apps/voting/app/src/vote-utils.js#L45-L63
+			let yea = new web3.utils.BN(vote.yea)
+			let nay = new web3.utils.BN(vote.nay)
+			let totalVotes = yea.add(nay)
+			if (totalVotes.isZero()) {
+				vote.success = false
+			} else {
+				let votingPower = new web3.utils.BN(vote.votingPower)
+				let supportRequired = new web3.utils.BN(vote.supportRequiredPct)
+				let minAcceptQuorum = new web3.utils.BN(vote.minAcceptQuorum)
+				let yeaPct = yea.mul(PCTBASE).div(totalVotes)
+				let yeaOfTotalPowerPct = yea.mul(PCTBASE).div(votingPower)
+
+				// Mirror on-chain calculation
+				// yea / votingPower > supportRequired ||
+				//   (yea / totalVotes > supportRequired &&
+				//    yea / votingPower > minAcceptQuorum)
+				vote.success = (
+					yeaOfTotalPowerPct.gt(supportRequired) ||
+					(yeaPct.gt(supportRequired) && yeaOfTotalPowerPct.gt(minAcceptQuorum))
+				)
+			}
 		},
 		toVote({ id, supports, executes = true }) {
 			flamincome.__display__("Ready to vote...")
