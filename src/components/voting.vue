@@ -27,7 +27,6 @@ import connect from "@aragon/connect"
 import connectVoting from "@aragon/connect-voting"
 import _ from "lodash"
 
-const PCTBASE = new web3.utils.BN('1000000000000000000') // 1e18
 
 export default {
 	mounted() {
@@ -35,6 +34,7 @@ export default {
 	},
 	data() {
 		return {
+			pctbase: new web3.utils.BN('1000000000000000000'), // 1e18
 			title: {
 				"0": "Loading votes...",
 				"-1": "Load failed",
@@ -106,8 +106,8 @@ export default {
 				let votingPower = new web3.utils.BN(vote.votingPower)
 				let supportRequired = new web3.utils.BN(vote.supportRequiredPct)
 				let minAcceptQuorum = new web3.utils.BN(vote.minAcceptQuorum)
-				let yeaPct = yea.mul(PCTBASE).div(totalVotes)
-				let yeaOfTotalPowerPct = yea.mul(PCTBASE).div(votingPower)
+				let yeaPct = yea.mul(this.pctbase).div(totalVotes)
+				let yeaOfTotalPowerPct = yea.mul(this.pctbase).div(votingPower)
 
 				// Mirror on-chain calculation
 				// yea / votingPower > supportRequired ||
