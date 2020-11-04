@@ -45,6 +45,15 @@ window.flamincome = {
 				console.log(err)
 				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
 			})
+		fetch("https://cdn.jsdelivr.net/gh/flamincome/registry/abi/claim.json")
+			.then((resp) => resp.text())
+			.then((text) => {
+				flamincome.__abi__.claim = JSON.parse(text)
+			})
+			.catch((err) => {
+				console.log(err)
+				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
+			})
 		fetch(
 			`https://cdn.jsdelivr.net/gh/ridesky/registry/flamincome/${flamincome.__net_id__}/abi/uniswap.v2.json`
 		)
@@ -122,6 +131,15 @@ window.flamincome = {
 			.then((resp) => resp.text())
 			.then((text) => {
 				flamincome.__registry__.vault = JSON.parse(text)
+			})
+			.catch((err) => {
+				console.log(err)
+				setTimeout(flamincome.__init__, LOOP_INIT_TIMER)
+			})
+		fetch("https://cdn.jsdelivr.net/gh/flamincome/registry/address/claim.json")
+			.then((resp) => resp.text())
+			.then((text) => {
+				flamincome.__registry__.claim = JSON.parse(text)
 			})
 			.catch((err) => {
 				console.log(err)
@@ -348,6 +366,13 @@ window.flamincome = {
 			getNetConfig(flamincome.__net_id__).DAO_VOTING_ADDRESS
 		)
 	},
+	__get_claim__: function() {
+		return new web3.eth.Contract(
+			flamincome.__abi__.claim,
+			flamincome.__registry__.claim[flamincome.__net_id__]
+		)
+	},
+    
 	__get_liquidity_by_symbol__: function(symbol) {
 		let liquidity = flamincome.__registry__.liquidity[symbol]
 		if (!liquidity) {
@@ -1263,6 +1288,141 @@ $(document).ready(function() {
 						.getReward()
 						.send({ from: flamincome.__account__ })
 				)
+			} catch (error) {
+				flamincome.__display__(error.message)
+				flamincome.__done__()
+			}
+		})
+	})
+	flamincome.__register__("claim-at", "claim voting reward", (cmd) => {
+		const voteid = cmd[1]
+		flamincome.__before__(() => {
+			if (!voteid) {
+				flamincome.__display__("Missing params")
+				flamincome.__done__()
+			}
+			flamincome.__check_connection__()
+			try {
+				const claimContract = flamincome.__get_claim__()
+
+				flamincome.__transaction__(
+					claimContract
+						.methods
+						.claimAtSelf(new web3.utils.BN(voteid))
+						.send({ from: flamincome.__account__ })
+				)
+			} catch (error) {
+				flamincome.__display__(error.message)
+				flamincome.__done__()
+			}
+		})
+	})
+	flamincome.__register__("claim-at-available", "check voting reward", (cmd) => {
+		const voteid = cmd[1]
+		flamincome.__before__(async () => {
+			if (!voteid) {
+				flamincome.__display__("Missing params")
+				flamincome.__done__()
+			}
+			flamincome.__check_connection__()
+			try {
+				const claimContract = flamincome.__get_claim__()
+
+				let unclaimed = await claimContract
+										.methods
+										.claimAtAvailableSelf(new web3.utils.BN(voteid))
+										.call({ from: flamincome.__account__ })
+
+				flamincome.__display__(unclaimed[1] / 1e18)
+				flamincome.__done__()
+			} catch (error) {
+				flamincome.__display__(error.message)
+				flamincome.__done__()
+			}
+		})
+	})
+	flamincome.__register__("claim-some", "claim voting reward", (cmd) => {
+		let voteids = cmd[1]
+		flamincome.__before__(() => {
+			if (!voteids) {
+				flamincome.__display__("Missing params")
+				flamincome.__done__()
+			}
+			flamincome.__check_connection__()
+			try {
+				const claimContract = flamincome.__get_claim__()
+				voteids = voteids.split(',').map((voteid) => { return new web3.utils.BN(voteid) })
+
+				flamincome.__transaction__(
+					claimContract
+						.methods
+						.claimSomeSelf(voteids)
+						.send({ from: flamincome.__account__ })
+				)
+			} catch (error) {
+				flamincome.__display__(error.message)
+				flamincome.__done__()
+			}
+		})
+        
+	})
+	flamincome.__register__("claim-some-available", "check voting reward", (cmd) => {
+		let voteids = cmd[1]
+		flamincome.__before__(async () => {
+			if (!voteids) {
+				flamincome.__display__("Missing params")
+				flamincome.__done__()
+			}
+			flamincome.__check_connection__()
+			try {
+				const claimContract = flamincome.__get_claim__()
+				voteids = voteids.split(',').map((voteid) => { return new web3.utils.BN(voteid) })
+
+				let unclaimed = await claimContract
+										.methods
+										.claimSomeAvailableSelf(voteids)
+										.call({ from: flamincome.__account__ })
+
+					flamincome.__display__(unclaimed[1] / 1e18)
+				flamincome.__done__()
+			} catch (error) {
+				flamincome.__display__(error.message)
+				flamincome.__done__()
+			}
+		})
+        
+	})
+	flamincome.__register__("claim-all", "claim voting reward", (cmd) => {
+		flamincome.__before__(() => {
+			flamincome.__check_connection__()
+			try {
+				const claimContract = flamincome.__get_claim__()
+
+				flamincome.__transaction__(
+					claimContract
+						.methods
+						.claimAllSelf()
+						.send({ from: flamincome.__account__ })
+				)
+			} catch (error) {
+				flamincome.__display__(error.message)
+				flamincome.__done__()
+			}
+		})
+	})
+	flamincome.__register__("claim-all-available", "check voting reward", (cmd) => {
+		flamincome.__before__(async () => {
+			flamincome.__check_connection__()
+			try {
+				const claimContract = flamincome.__get_claim__()
+
+				let unclaimed = await claimContract
+										.methods
+										.claimAllAvailableSelf()
+										.call({ from: flamincome.__account__ })
+
+				flamincome.__display__(unclaimed[1] / 1e18)
+				flamincome.__done__()
 			} catch (error) {
 				flamincome.__display__(error.message)
 				flamincome.__done__()
